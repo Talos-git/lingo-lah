@@ -12,44 +12,17 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CSS for Horizontal Scrolling Buttons ---
-# Inject CSS once for the entire app
-st.markdown("""
-<style>
-div[data-testid="stHorizontalBlock"] > div:first-child {
-    /* Target the inner container where buttons are rendered within columns */
-    display: flex;          /* Lay out buttons horizontally */
-    overflow-x: auto;       /* Enable horizontal scrolling */
-    white-space: nowrap;    /* Prevent buttons from wrapping */
-    padding-bottom: 10px;   /* Add space for scrollbar if needed */
-    padding-top: 5px;       /* Optional: Add some space above buttons */
-}
-
-div[data-testid="stHorizontalBlock"] > div:first-child > div[data-testid="element-container"] {
-    /* Target individual button containers for margin */
-    margin-right: 5px;      /* Add space between buttons */
-}
-
-/* Optional: Hide scrollbar visually (scrolling still works) */
-div[data-testid="stHorizontalBlock"] > div:first-child::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
-}
-div[data-testid="stHorizontalBlock"] > div:first-child {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-}
-</style>
-""", unsafe_allow_html=True)
-
+# --- REMOVED CSS for Horizontal Scrolling Buttons ---
+# The previous CSS block targeting stHorizontalBlock is removed as it's no longer needed.
 
 # --- Title and Description ---
 st.title("Lingo-Lah: Your Local Lingo Guide")
 st.write("Explore and understand Malaysian slang or lingo that locals use in their everyday life.")
 
 # --- State Management ---
-# Initialize selected term state
-if 'selected_term' not in st.session_state:
-    st.session_state.selected_term = None
+# REMOVED 'selected_term' state - selection is handled by active tab
+# if 'selected_term' not in st.session_state:
+#     st.session_state.selected_term = None
 
 # Initialize the cache dictionary in session state if it doesn't exist
 if 'lingo_cache' not in st.session_state:
@@ -58,20 +31,8 @@ if 'lingo_cache' not in st.session_state:
 # Get category names from your data structure
 category_names = list(lingo_terms_by_category.keys())
 
-# Set default active tab state (optional, but good practice)
-if 'active_tab' not in st.session_state:
-    # Check if category_names is not empty before accessing index 0
-    if category_names:
-        st.session_state.active_tab = category_names[0]
-    else:
-        st.session_state.active_tab = None # Handle case with no categories
-
-# Helper function to update selected term
-def select_term(term):
-    st.session_state.selected_term = term
-    # Optional: could clear cache here if needed
-    # if 'lingo_cache' in st.session_state:
-    #     del st.session_state.lingo_cache
+# REMOVED 'active_tab' state - not needed for this structure
+# REMOVED select_term function - no longer needed
 
 # --- API Configuration (Using @st.cache_resource for the model) ---
 @st.cache_resource # Cache the model resource initialization
@@ -96,90 +57,90 @@ model = get_gemini_model()
 
 # --- Display Category Tabs ---
 if category_names: # Only display tabs if there are categories
-    tabs = st.tabs(category_names)
+    category_tabs = st.tabs(category_names) # Renamed for clarity
 
     for i, category_name in enumerate(category_names):
-        with tabs[i]:
-            st.subheader(category_name)
+        with category_tabs[i]:
+            # Optional: Keep subheader for category context if desired
+            # st.subheader(category_name)
             terms = lingo_terms_by_category.get(category_name, []) # Safely get terms
 
-            # --- Implement Horizontal Scrolling Buttons ---
+            # --- Implement Nested Term Tabs ---
             if terms: # Check if there are terms in this category
-                # Create exactly one column per term to leverage the CSS styling
-                term_cols = st.columns(len(terms))
-                for j, term in enumerate(terms):
-                    with term_cols[j]:
-                        # Using a unique key for each button across all tabs
-                        if st.button(term, key=f"{category_name}_{term}"):
-                            select_term(term)
+                term_tabs = st.tabs(terms) # Create nested tabs using term names
+
+                for j, term in enumerate(terms): # Loop through terms and their corresponding tabs
+                    with term_tabs[j]: # Define content for *this specific term tab*
+                        # --- Display of Details Section MOVED INSIDE Term Tab ---
+                        # st.write("---") # Separator is optional here
+                        # st.subheader(f"Details for: {term}") # Subheader might be redundant as tab name = term
+
+                        # Placeholder for display specific to this term tab
+                        details_placeholder = st.empty()
+                        country_code = "MY" # Assuming Malaysian context
+
+                        # Logic to display details for 'term' (from the current tab loop)
+
+                        # 1. Check if the result is already in the session cache
+                        if term in st.session_state.lingo_cache:
+                            # --- Cache Hit ---
+                            details_placeholder.markdown(st.session_state.lingo_cache[term])
+                            # st.caption("Displayed from session cache.") # Optional debug info
+
+                        # 2. If not cached AND the model is available, fetch from API
+                        elif model:
+                            # --- Cache Miss ---
+                            try:
+                                # --- Define the Prompt (uses 'term' from the loop) ---
+                                prompt = f"""Explain the {country_code} slang term '{term}'.
+
+                                            Structure the response using Markdown:
+                                            ### Meaning
+                                            Provide the definition here.
+
+                                            ### Typical Usage Context
+                                            Describe when and how it's typically used.
+
+                                            ### Example Sentences
+                                            Provide three numbered example sentences:
+                                            1. Example 1
+                                            2. Example 2
+                                            3. Example 3
+
+                                            Keep the explanation clear and concise.
+                                            """
+
+                                # --- Streaming Call and Display Update ---
+                                response = model.generate_content(prompt, stream=True)
+
+                                full_response = ""
+                                for chunk in response:
+                                    # Check if the chunk has text content
+                                    if hasattr(chunk, 'text') and chunk.text:
+                                        full_response += chunk.text
+                                        # Update placeholder on each chunk for visual streaming effect
+                                        details_placeholder.markdown(full_response + "▌") # Add cursor
+
+                                # Final update to remove the cursor
+                                details_placeholder.markdown(full_response)
+
+                                # --- Store the successful result in the session cache ---
+                                st.session_state.lingo_cache[term] = full_response
+
+                            except Exception as e:
+                                details_placeholder.error(f"An error occurred while fetching details for {term}: {e}")
+                                # Optionally clear the failed term from cache if needed
+                                # if term in st.session_state.lingo_cache:
+                                #     del st.session_state.lingo_cache[term]
+
+                        # 3. Handle case where the model failed to initialize
+                        else:
+                             details_placeholder.error("Lingo details cannot be fetched because the Gemini model is not available.")
             else:
-                st.caption("No terms listed in this category yet.") # Handle empty categories
+                st.caption("No terms listed in this category yet.") # Handle empty categories within the main tab
 
 else:
     st.warning("No lingo categories found in the data.") # Message if data is empty
 
-# --- Conditional Display of Details Section (with Session State Caching) ---
-if st.session_state.selected_term:
-    st.write("---") # Separator
-    st.subheader(f"Details for: {st.session_state.selected_term}")
-
-    # Placeholder for display
-    details_placeholder = st.empty()
-    term = st.session_state.selected_term
-    country_code = "MY" # Assuming Malaysian context
-
-    # 1. Check if the result is already in the session cache
-    if term in st.session_state.lingo_cache:
-        # --- Cache Hit ---
-        details_placeholder.markdown(st.session_state.lingo_cache[term])
-        # st.caption("Displayed from session cache.") # Optional debug info
-
-    # 2. If not cached AND the model is available, fetch from API
-    elif model:
-        # --- Cache Miss ---
-        try:
-            # --- Define the Prompt ---
-            prompt = f"""Explain the {country_code} slang term '{term}'.
-
-                        Structure the response using Markdown:
-                        ### Meaning
-                        Provide the definition here.
-
-                        ### Typical Usage Context
-                        Describe when and how it's typically used.
-
-                        ### Example Sentences
-                        Provide three numbered example sentences:
-                        1. Example 1
-                        2. Example 2
-                        3. Example 3
-
-                        Keep the explanation clear and concise.
-                        """
-
-            # --- Streaming Call and Display Update ---
-            response = model.generate_content(prompt, stream=True)
-
-            full_response = ""
-            for chunk in response:
-                # Check if the chunk has text content
-                if hasattr(chunk, 'text') and chunk.text:
-                    full_response += chunk.text
-                    # Update placeholder on each chunk for visual streaming effect
-                    details_placeholder.markdown(full_response + "▌") # Add cursor
-
-            # Final update to remove the cursor
-            details_placeholder.markdown(full_response)
-
-            # --- Store the successful result in the session cache ---
-            st.session_state.lingo_cache[term] = full_response
-
-        except Exception as e:
-            details_placeholder.error(f"An error occurred while fetching details for {term}: {e}")
-            # Optionally clear the failed term from cache if needed
-            # if term in st.session_state.lingo_cache:
-            #     del st.session_state.lingo_cache[term]
-
-    # 3. Handle case where the model failed to initialize
-    else:
-         details_placeholder.error("Lingo details cannot be fetched because the Gemini model is not available.")
+# --- Conditional Display of Details Section REMOVED FROM HERE ---
+# The logic is now inside the nested term tabs
