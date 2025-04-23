@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 from lingo_data import lingo_terms_by_category
 import os
-import time # Import time for simulating streaming
+# Removed time import as it's not used for simulation anymore
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -16,18 +16,50 @@ st.title("Lingo-Lah: Your Local Lingo Decoder")
 st.write("Explore and understand Malaysian slang and colloquialisms.")
 
 # --- State Management ---
+# Initialize selected term state
 if 'selected_term' not in st.session_state:
     st.session_state.selected_term = None
+
+# Initialize the cache dictionary in session state if it doesn't exist
+if 'lingo_cache' not in st.session_state:
+    st.session_state.lingo_cache = {} # Use this to store term -> explanation
 
 # Get category names
 category_names = list(lingo_terms_by_category.keys())
 
+# Set default active tab state (optional, but good practice)
 if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = category_names[0] # Set default active tab
+    st.session_state.active_tab = category_names[0]
 
 # Helper function to update selected term
 def select_term(term):
     st.session_state.selected_term = term
+    # Optional: could clear cache here if needed, but usually not for this use case
+    # if 'lingo_cache' in st.session_state:
+    #     del st.session_state.lingo_cache
+
+# --- API Configuration (Using @st.cache_resource for the model) ---
+@st.cache_resource # Cache the model resource initialization
+def get_gemini_model():
+    """Initializes and returns the Gemini model client."""
+    try:
+        # Ensure API key is available via Streamlit secrets
+        if "GEMINI_API_KEY" not in st.secrets:
+            st.error("Google API key not found. Please add it to `.streamlit/secrets.toml`.")
+            return None # Indicate failure
+
+        api_key = st.secrets["GEMINI_API_KEY"]
+        genai.configure(api_key=api_key)
+        # Consider using a specific model version if needed
+        # Using gemini-1.5-flash as it's often a good balance of speed and capability
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        return model
+    except Exception as e:
+        st.error(f"Failed to initialize Gemini model: {e}")
+        return None
+
+# Get the model (will be cached after the first run)
+model = get_gemini_model()
 
 # --- Display Category Tabs ---
 tabs = st.tabs(category_names)
@@ -47,74 +79,71 @@ for i, category_name in enumerate(category_names):
                 if st.button(term, key=f"{category_name}_{term}"):
                     select_term(term)
 
-@st.cache_data(show_spinner=False)
-def get_lingo_details_raw(term: str, country_code: str = "MY"):
-    """Fetches lingo details as a raw string from the LLM with caching."""
-    try:
-        if "GEMINI_API_KEY" not in st.secrets:
-            st.error("Google API key not found. Please add it to `.streamlit/secrets.toml`.")
-            return {"error": "API key missing"}
-
-        api_key = st.secrets["GEMINI_API_KEY"]
-        genai.configure(api_key=api_key)
-        # Consider using cache_resource for the model if removing cache_data
-        model = genai.GenerativeModel('gemini-2.0-flash') 
-
-        # --- Modified Prompt ---
-        prompt = f"""Explain the {country_code} slang term '{term}'.
-
-                    Structure the response using Markdown:
-                    ## Meaning
-                    Provide the definition here.
-
-                    ## Typical Usage Context
-                    Describe when and how it's typically used.
-
-                    ## Example Sentences
-                    Provide three numbered example sentences:
-                    1. Example 1
-                    2. Example 2
-                    3. Example 3
-
-                    Keep the explanation clear and concise.
-                    """
-
-        response = model.generate_content(prompt, stream=True)
-
-        full_response = ""
-        for chunk in response:
-             # Add check for text attribute
-            if hasattr(chunk, 'text') and chunk.text:
-                full_response += chunk.text
-            # If you want *visual* streaming like app2, you can't use cache_data easily
-            # and need to update a placeholder here. See note below.
-
-        return {"response": full_response} # Return the full response string
-
-    except Exception as e:
-        st.error(f"An error occurred while fetching details: {e}")
-        return {"error": str(e)}
-
-# --- Conditional Display of Details Section ---
+# --- Conditional Display of Details Section (with Session State Caching) ---
 if st.session_state.selected_term:
     st.write("---") # Separator
     st.subheader(f"Details for: {st.session_state.selected_term}")
 
-    # Placeholder for potential streaming display (optional)
+    # Placeholder for display
     details_placeholder = st.empty()
+    term = st.session_state.selected_term
+    country_code = "MY" # Assuming Malaysian context
 
-    with st.spinner(f"Fetching details for '{st.session_state.selected_term}'..."):
-        # Call the modified function
-        result = get_lingo_details_raw(st.session_state.selected_term)
+    # 1. Check if the result is already in the session cache
+    if term in st.session_state.lingo_cache:
+        # --- Cache Hit ---
+        # Display cached result instantly
+        details_placeholder.markdown(st.session_state.lingo_cache[term])
+        # Optional: Indicate it came from cache for debugging/info
+        # st.caption("Displayed from session cache.")
 
-    if "error" in result:
-        details_placeholder.error(f"Could not fetch details for {st.session_state.selected_term}. Error: {result['error']}")
-    elif "response" in result:
-        # Display the raw response using markdown
-        details_placeholder.markdown(result["response"])
+    # 2. If not cached AND the model is available, fetch from API
+    elif model:
+        # --- Cache Miss ---
+        with st.spinner(f"Generating details for '{term}'..."):
+            try:
+                # --- Define the Prompt ---
+                prompt = f"""Explain the {country_code} slang term '{term}'.
+
+                            Structure the response using Markdown:
+                            ### Meaning
+                            Provide the definition here.
+
+                            ### Typical Usage Context
+                            Describe when and how it's typically used.
+
+                            ### Example Sentences
+                            Provide three numbered example sentences:
+                            1. Example 1
+                            2. Example 2
+                            3. Example 3
+
+                            Keep the explanation clear and concise.
+                            """
+
+                # --- Streaming Call and Display Update ---
+                response = model.generate_content(prompt, stream=True)
+
+                full_response = ""
+                for chunk in response:
+                    # Check if the chunk has text content
+                    if hasattr(chunk, 'text') and chunk.text:
+                        full_response += chunk.text
+                        # Update placeholder on each chunk for visual streaming effect
+                        details_placeholder.markdown(full_response + "▌") # Add cursor
+
+                # Final update to remove the cursor
+                details_placeholder.markdown(full_response)
+
+                # --- Store the successful result in the session cache ---
+                st.session_state.lingo_cache[term] = full_response
+
+            except Exception as e:
+                details_placeholder.error(f"An error occurred while fetching details for {term}: {e}")
+                # Optionally clear the failed term from cache if needed
+                # if term in st.session_state.lingo_cache:
+                #     del st.session_state.lingo_cache[term]
+
+    # 3. Handle case where the model failed to initialize
     else:
-         details_placeholder.error(f"Received an unexpected result for {st.session_state.selected_term}.")
-
-    # Optional: Add rerun if you experience state issues,
-    # though likely not needed with this simpler display logic.
-    # st.rerun()
+         details_placeholder.error("Lingo details cannot be fetched because the Gemini model is not available.")
