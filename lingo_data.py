@@ -1,4 +1,12 @@
 lingo_terms_by_category = {
+    "Everyday Conversation Emphasis & Fillers": [
+        "Lah",
+        "Meh",
+        "Lor",
+        "Aiyoh / Aiyah",
+        "Walao Eh",
+        "Alamak"
+    ],
     "Ordering Food & Drinks": [
         "Tapau",
         "Makan",
@@ -7,14 +15,6 @@ lingo_terms_by_category = {
         "Ikat Tepi",
         "Kurang Manis",
         "Belanja"
-    ],
-    "Everyday Conversation Emphasis & Fillers": [
-        "Lah",
-        "Meh",
-        "Lor",
-        "Aiyoh / Aiyah",
-        "Walao Eh",
-        "Alamak"
     ],
     "Social Interactions & Getting Around": [
         "Jom",
