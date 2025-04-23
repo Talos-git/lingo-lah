@@ -12,6 +12,36 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- CSS for Horizontal Scrolling Radio Buttons ---
+st.markdown("""
+<style>
+/* Target the container holding the horizontal radio buttons */
+/* This selector might need adjustment based on Streamlit version */
+div[data-testid="stRadio"] > div[role="radiogroup"] {
+    display: flex !important;          /* Ensure flex layout */
+    overflow-x: auto !important;       /* Enable horizontal scrolling */
+    white-space: nowrap !important;    /* Prevent wrapping */
+    padding-bottom: 10px;   /* Add space for scrollbar if needed */
+    padding-top: 5px;       /* Optional: Add some space above */
+}
+
+/* Optional: Style individual radio items for spacing */
+div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+    margin-right: 15px; /* Adjust spacing between radio options */
+    display: inline-block; /* Ensure proper layout */
+}
+
+/* Optional: Hide scrollbar visually (scrolling still works) */
+div[data-testid="stRadio"] > div[role="radiogroup"]::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+div[data-testid="stRadio"] > div[role="radiogroup"] {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+</style>
+""", unsafe_allow_html=True)
+
 # --- Title and Description ---
 st.title("Lingo-Lah: Your Local Lingo Guide")
 st.write("Explore and understand Malaysian slang or lingo that locals use in their everyday life.")
