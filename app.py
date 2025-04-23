@@ -20,10 +20,7 @@ st.write("Explore and understand Malaysian slang or lingo that locals use in the
 # Initialize the cache dictionary in session state if it doesn't exist
 if 'lingo_cache' not in st.session_state:
     st.session_state.lingo_cache = {} # Use this to store term -> explanation
-
-# Initialize streaming state flag
-if 'is_streaming' not in st.session_state:
-    st.session_state.is_streaming = False
+# Session state for radio buttons will be managed via their keys directly
 
 # Get category names from your data structure
 category_names = list(lingo_terms_by_category.keys())
@@ -50,135 +47,104 @@ def get_gemini_model():
 model = get_gemini_model()
 
 # --- Display Category Tabs ---
-# Note: st.tabs itself cannot be easily disabled. We disable the radio buttons inside.
 if category_names: # Only display tabs if there are categories
     category_tabs = st.tabs(category_names)
 
     for i, category_name in enumerate(category_names):
         with category_tabs[i]:
+            # Optional: Keep subheader for category context if desired
+            # st.subheader(category_name)
             terms = lingo_terms_by_category.get(category_name, []) # Safely get terms
 
-# --- Use st.radio for Term Selection ---
+            # --- Use st.radio for Term Selection ---
             if terms: # Check if there are terms in this category
                 radio_key = f"radio_{category_name}" # Unique key per category
 
-                # Set a default selection (first term) if state doesn't exist
+                # Set a default selection (first term) if state doesn't exist for this radio group
                 if radio_key not in st.session_state:
-                    if not st.session_state.get('is_streaming', False):
-                         st.session_state[radio_key] = terms[0]
+                    st.session_state[radio_key] = terms[0]
 
-                # Disable radio buttons if streaming is active
-                is_disabled = st.session_state.get('is_streaming', False)
-
+                # Display radio buttons horizontally, selected value stored in session_state[radio_key]
                 selected_term = st.radio(
                     label=f"Select term in {category_name}", # Label for accessibility
                     options=terms,
                     key=radio_key, # Links radio state to st.session_state
                     horizontal=True,
-                    label_visibility="collapsed", # Hides the label visually
-                    disabled=is_disabled # Disable based on streaming state
+                    label_visibility="collapsed" # Hides the label visually
                 )
 
-                # --- Details Logic - Based on 'selected_term' from radio ---
+                # --- Details Logic - Runs ONLY for the 'selected_term' from radio ---
                 if selected_term:
-                    # --- DEFINE placeholder HERE, ensuring it exists if a term is selected ---
+                    # Placeholder for display specific to this selected term
                     details_placeholder = st.empty()
                     country_code = "MY" # Assuming Malaysian context
 
-                    # Check if we should fetch/display or show passive cache
-                    if not is_disabled:
-                        # --- Active State: Fetch or show cache ---
+                    # Logic to display details for 'selected_term'
 
-                        # 1. Check if the result is already in the session cache
-                        if selected_term in st.session_state.lingo_cache:
-                            details_placeholder.markdown(st.session_state.lingo_cache[selected_term])
-
-                        # 2. If not cached AND model is available, fetch from API
-                        elif model:
-                            print(f"DEBUG: Cache miss for '{selected_term}'. Checking model.") # DEBUG
-                            # --- Cache Miss ---
-                            try:
-                                # --- SET STREAMING STATE ---
-                                print(f"DEBUG: Setting is_streaming = True for '{selected_term}'") # DEBUG
-                                st.session_state.is_streaming = True
-                                # NOTE: We don't rerun here, the disabled state applies on the *next* pass
-
-                                # Show loading indicator
-                                with details_placeholder.container():
-                                    st.info(f"Fetching details for '{selected_term}'...")
-
-                                # --- Define the Prompt ---
-                                prompt = f"""Explain the {country_code} slang term '{selected_term}'.
-
-                                            Structure the response using Markdown:
-                                            ### Meaning
-                                            Provide the definition here.
-
-                                            ### Typical Usage Context
-                                            Describe when and how it's typically used.
-
-                                            ### Example Sentences
-                                            Provide three numbered example sentences:
-                                            1. Example 1
-                                            2. Example 2
-                                            3. Example 3
-
-                                            Keep the explanation clear and concise.
-                                            """
-                                print(f"DEBUG: Prompt defined for '{selected_term}'. Calling API...") # DEBUG
-
-                                # --- Streaming Call ---
-                                response = model.generate_content(prompt, stream=True)
-                                print(f"DEBUG: API call initiated for '{selected_term}'. Processing stream...") # DEBUG
-
-                                # Process stream
-                                full_response = ""
-                                stream_processed_chunks = 0 # Counter for debug
-                                with details_placeholder.container():
-                                    stream_display = st.empty()
-                                    for chunk in response:
-                                        stream_processed_chunks += 1
-                                        # print(f"DEBUG: Processing chunk {stream_processed_chunks} for '{selected_term}'") # DEBUG - Can be very verbose
-                                        if hasattr(chunk, 'text') and chunk.text:
-                                            full_response += chunk.text
-                                            stream_display.markdown(full_response + "▌")
-                                        else:
-                                            print(f"DEBUG: Chunk {stream_processed_chunks} for '{selected_term}' had no text.") # DEBUG
-
-                                    print(f"DEBUG: Finished stream loop for '{selected_term}' after {stream_processed_chunks} chunks.") # DEBUG
-                                    stream_display.markdown(full_response) # Final update
-
-                                # --- Store the successful result in the session cache ---
-                                print(f"DEBUG: Caching result for '{selected_term}'") # DEBUG
-                                st.session_state.lingo_cache[selected_term] = full_response
-
-                            except Exception as e:
-                                # Use the same placeholder to show the error
-                                print(f"!!!! DEBUG: EXCEPTION occurred for '{selected_term}': {e}", flush=True) # DEBUG Ensure this prints
-                                details_placeholder.error(f"An error occurred while fetching details for {selected_term}: {e}")
-                                # Error occurred, finally block will reset state
-
-                            finally:
-                                # --- RESET STREAMING STATE ---
-                                print(f"DEBUG: Entering FINALLY block for '{selected_term}'.") # DEBUG
-                                st.session_state.is_streaming = False
-                                print(f"DEBUG: Set is_streaming = False for '{selected_term}'.") # DEBUG
-                                # Rerun to immediately re-enable the radio buttons
-                                print(f"DEBUG: Calling st.rerun() for '{selected_term}'.") # DEBUG
-                                st.rerun()
-
-                        # 3. Handle case where the model failed to initialize
-                        elif not model:
-                             details_placeholder.error("Gemini model not available.")
-
-                    elif is_disabled and selected_term in st.session_state.lingo_cache:
-                        # --- Passive State: Streaming elsewhere, show cache if available ---
+                    # 1. Check if the result is already in the session cache
+                    if selected_term in st.session_state.lingo_cache:
+                        # --- Cache Hit ---
                         details_placeholder.markdown(st.session_state.lingo_cache[selected_term])
-                        st.caption("_Loading other term..._")
-                    # Optional: Add an else here if is_disabled is True BUT term is not in cache
-                    # else:
-                    #    details_placeholder.caption("_Loading other term..._")
+                        # st.caption("Displayed from session cache.") # Optional debug info
 
+                    # 2. If not cached AND the model is available, fetch from API
+                    elif model:
+                        # --- Cache Miss ---
+                        try:
+                            # Show loading indicator while fetching
+                            with details_placeholder.container():
+                                 st.info(f"Fetching details for '{selected_term}'...") # Simple text indicator
 
+                            # --- Define the Prompt ---
+                            prompt = f"""Explain the {country_code} slang term '{selected_term}'.
+
+                                        Structure the response using Markdown:
+                                        ### Meaning
+                                        Provide the definition here.
+
+                                        ### Typical Usage Context
+                                        Describe when and how it's typically used.
+
+                                        ### Example Sentences
+                                        Provide three numbered example sentences:
+                                        1. Example 1
+                                        2. Example 2
+                                        3. Example 3
+
+                                        Keep the explanation clear and concise.
+                                        """
+
+                            # --- Streaming Call and Display Update ---
+                            response = model.generate_content(prompt, stream=True)
+
+                            full_response = ""
+                            # Use the same placeholder to display streaming response
+                            with details_placeholder.container():
+                                stream_display = st.empty() # Inner placeholder for stream
+                                for chunk in response:
+                                    if hasattr(chunk, 'text') and chunk.text:
+                                        full_response += chunk.text
+                                        stream_display.markdown(full_response + "▌") # Update stream
+
+                                stream_display.markdown(full_response) # Final update
+
+                            # --- Store the successful result in the session cache ---
+                            st.session_state.lingo_cache[selected_term] = full_response
+
+                        except Exception as e:
+                            # Use the same placeholder to show the error
+                            details_placeholder.error(f"An error occurred while fetching details for {selected_term}: {e}")
+                            # Optionally clear the failed term from cache if needed
+                            # if selected_term in st.session_state.lingo_cache:
+                            #     del st.session_state.lingo_cache[selected_term]
+
+                    # 3. Handle case where the model failed to initialize
+                    else:
+                         # Use the same placeholder to show the error
+                         details_placeholder.error("Lingo details cannot be fetched because the Gemini model is not available.")
+                # --- End of Details Logic ---
             else:
-                st.caption("No terms listed in this category yet.")
+                st.caption("No terms listed in this category yet.") # Handle empty categories within the main tab
+
+else:
+    st.warning("No lingo categories found in the data.") # Message if data is empty
