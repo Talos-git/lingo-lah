@@ -127,7 +127,3 @@ if st.session_state.selected_term:
                 if example.strip(): # Avoid empty lines
                     st.write(f"- {example.strip()}")
 
-
-# --- API Key Management Note (Re-added as a general note) ---
-st.markdown("---")
-st.info("Remember to set your Google API key in `.streamlit/secrets.toml` as `GOOGLE_API_KEY='YOUR_API_KEY'`")
