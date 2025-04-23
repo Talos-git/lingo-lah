@@ -95,16 +95,19 @@ if category_names: # Only display tabs if there are categories
 
                         # 2. If not cached AND model is available, fetch from API
                         elif model:
+                            print(f"DEBUG: Cache miss for '{selected_term}'. Checking model.") # DEBUG
+                            # --- Cache Miss ---
                             try:
                                 # --- SET STREAMING STATE ---
+                                print(f"DEBUG: Setting is_streaming = True for '{selected_term}'") # DEBUG
                                 st.session_state.is_streaming = True
+                                # NOTE: We don't rerun here, the disabled state applies on the *next* pass
 
                                 # Show loading indicator
                                 with details_placeholder.container():
-                                     st.info(f"Fetching details for '{selected_term}'...")
+                                    st.info(f"Fetching details for '{selected_term}'...")
 
-                                # Define Prompt, Call API, Stream Response...
-                                # (Same API call, streaming, and caching logic as before)
+                                # --- Define the Prompt ---
                                 prompt = f"""Explain the {country_code} slang term '{selected_term}'.
 
                                             Structure the response using Markdown:
@@ -122,23 +125,46 @@ if category_names: # Only display tabs if there are categories
 
                                             Keep the explanation clear and concise.
                                             """
+                                print(f"DEBUG: Prompt defined for '{selected_term}'. Calling API...") # DEBUG
+
+                                # --- Streaming Call ---
                                 response = model.generate_content(prompt, stream=True)
+                                print(f"DEBUG: API call initiated for '{selected_term}'. Processing stream...") # DEBUG
+
+                                # Process stream
                                 full_response = ""
+                                stream_processed_chunks = 0 # Counter for debug
                                 with details_placeholder.container():
                                     stream_display = st.empty()
                                     for chunk in response:
+                                        stream_processed_chunks += 1
+                                        # print(f"DEBUG: Processing chunk {stream_processed_chunks} for '{selected_term}'") # DEBUG - Can be very verbose
                                         if hasattr(chunk, 'text') and chunk.text:
                                             full_response += chunk.text
                                             stream_display.markdown(full_response + "▌")
-                                    stream_display.markdown(full_response)
+                                        else:
+                                            print(f"DEBUG: Chunk {stream_processed_chunks} for '{selected_term}' had no text.") # DEBUG
+
+                                    print(f"DEBUG: Finished stream loop for '{selected_term}' after {stream_processed_chunks} chunks.") # DEBUG
+                                    stream_display.markdown(full_response) # Final update
+
+                                # --- Store the successful result in the session cache ---
+                                print(f"DEBUG: Caching result for '{selected_term}'") # DEBUG
                                 st.session_state.lingo_cache[selected_term] = full_response
 
                             except Exception as e:
-                                details_placeholder.error(f"An error occurred: {e}")
+                                # Use the same placeholder to show the error
+                                print(f"!!!! DEBUG: EXCEPTION occurred for '{selected_term}': {e}", flush=True) # DEBUG Ensure this prints
+                                details_placeholder.error(f"An error occurred while fetching details for {selected_term}: {e}")
+                                # Error occurred, finally block will reset state
 
                             finally:
                                 # --- RESET STREAMING STATE ---
+                                print(f"DEBUG: Entering FINALLY block for '{selected_term}'.") # DEBUG
                                 st.session_state.is_streaming = False
+                                print(f"DEBUG: Set is_streaming = False for '{selected_term}'.") # DEBUG
+                                # Rerun to immediately re-enable the radio buttons
+                                print(f"DEBUG: Calling st.rerun() for '{selected_term}'.") # DEBUG
                                 st.rerun()
 
                         # 3. Handle case where the model failed to initialize
