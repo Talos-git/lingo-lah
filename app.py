@@ -1,8 +1,9 @@
+#app.py
 import streamlit as st
 import google.generativeai as genai
-from lingo_data import lingo_terms_by_category
+from lingo_data import lingo_terms_by_category # Assuming this file exists and is structured correctly
 import os
-# Removed time import as it's not used for simulation anymore
+# Removed time import as it's not used
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -10,6 +11,36 @@ st.set_page_config(
     page_icon="🗣️",
     layout="wide"
 )
+
+# --- CSS for Horizontal Scrolling Buttons ---
+# Inject CSS once for the entire app
+st.markdown("""
+<style>
+div[data-testid="stHorizontalBlock"] > div:first-child {
+    /* Target the inner container where buttons are rendered within columns */
+    display: flex;          /* Lay out buttons horizontally */
+    overflow-x: auto;       /* Enable horizontal scrolling */
+    white-space: nowrap;    /* Prevent buttons from wrapping */
+    padding-bottom: 10px;   /* Add space for scrollbar if needed */
+    padding-top: 5px;       /* Optional: Add some space above buttons */
+}
+
+div[data-testid="stHorizontalBlock"] > div:first-child > div[data-testid="element-container"] {
+    /* Target individual button containers for margin */
+    margin-right: 5px;      /* Add space between buttons */
+}
+
+/* Optional: Hide scrollbar visually (scrolling still works) */
+div[data-testid="stHorizontalBlock"] > div:first-child::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+div[data-testid="stHorizontalBlock"] > div:first-child {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # --- Title and Description ---
 st.title("Lingo-Lah: Your Local Lingo Guide")
@@ -24,17 +55,21 @@ if 'selected_term' not in st.session_state:
 if 'lingo_cache' not in st.session_state:
     st.session_state.lingo_cache = {} # Use this to store term -> explanation
 
-# Get category names
+# Get category names from your data structure
 category_names = list(lingo_terms_by_category.keys())
 
 # Set default active tab state (optional, but good practice)
 if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = category_names[0]
+    # Check if category_names is not empty before accessing index 0
+    if category_names:
+        st.session_state.active_tab = category_names[0]
+    else:
+        st.session_state.active_tab = None # Handle case with no categories
 
 # Helper function to update selected term
 def select_term(term):
     st.session_state.selected_term = term
-    # Optional: could clear cache here if needed, but usually not for this use case
+    # Optional: could clear cache here if needed
     # if 'lingo_cache' in st.session_state:
     #     del st.session_state.lingo_cache
 
@@ -50,9 +85,7 @@ def get_gemini_model():
 
         api_key = st.secrets["GEMINI_API_KEY"]
         genai.configure(api_key=api_key)
-        # Consider using a specific model version if needed
-        # Using gemini-1.5-flash as it's often a good balance of speed and capability
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash') 
         return model
     except Exception as e:
         st.error(f"Failed to initialize Gemini model: {e}")
@@ -62,22 +95,28 @@ def get_gemini_model():
 model = get_gemini_model()
 
 # --- Display Category Tabs ---
-tabs = st.tabs(category_names)
+if category_names: # Only display tabs if there are categories
+    tabs = st.tabs(category_names)
 
-for i, category_name in enumerate(category_names):
-    with tabs[i]:
-        st.subheader(category_name)
-        terms = lingo_terms_by_category[category_name]
+    for i, category_name in enumerate(category_names):
+        with tabs[i]:
+            st.subheader(category_name)
+            terms = lingo_terms_by_category.get(category_name, []) # Safely get terms
 
-        # Create columns for the grid layout
-        cols = st.columns(4) # Adjust number of columns as needed
+            # --- Implement Horizontal Scrolling Buttons ---
+            if terms: # Check if there are terms in this category
+                # Create exactly one column per term to leverage the CSS styling
+                term_cols = st.columns(len(terms))
+                for j, term in enumerate(terms):
+                    with term_cols[j]:
+                        # Using a unique key for each button across all tabs
+                        if st.button(term, key=f"{category_name}_{term}"):
+                            select_term(term)
+            else:
+                st.caption("No terms listed in this category yet.") # Handle empty categories
 
-        # Display lingo term buttons (cards)
-        for j, term in enumerate(terms):
-            with cols[j % 4]: # Distribute buttons across columns
-                # Using a unique key for each button
-                if st.button(term, key=f"{category_name}_{term}"):
-                    select_term(term)
+else:
+    st.warning("No lingo categories found in the data.") # Message if data is empty
 
 # --- Conditional Display of Details Section (with Session State Caching) ---
 if st.session_state.selected_term:
@@ -92,10 +131,8 @@ if st.session_state.selected_term:
     # 1. Check if the result is already in the session cache
     if term in st.session_state.lingo_cache:
         # --- Cache Hit ---
-        # Display cached result instantly
         details_placeholder.markdown(st.session_state.lingo_cache[term])
-        # Optional: Indicate it came from cache for debugging/info
-        # st.caption("Displayed from session cache.")
+        # st.caption("Displayed from session cache.") # Optional debug info
 
     # 2. If not cached AND the model is available, fetch from API
     elif model:
