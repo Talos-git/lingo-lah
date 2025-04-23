@@ -100,49 +100,48 @@ if st.session_state.selected_term:
     # 2. If not cached AND the model is available, fetch from API
     elif model:
         # --- Cache Miss ---
-        with st.spinner(f"Generating details for '{term}'..."):
-            try:
-                # --- Define the Prompt ---
-                prompt = f"""Explain the {country_code} slang term '{term}'.
+        try:
+            # --- Define the Prompt ---
+            prompt = f"""Explain the {country_code} slang term '{term}'.
 
-                            Structure the response using Markdown:
-                            ### Meaning
-                            Provide the definition here.
+                        Structure the response using Markdown:
+                        ### Meaning
+                        Provide the definition here.
 
-                            ### Typical Usage Context
-                            Describe when and how it's typically used.
+                        ### Typical Usage Context
+                        Describe when and how it's typically used.
 
-                            ### Example Sentences
-                            Provide three numbered example sentences:
-                            1. Example 1
-                            2. Example 2
-                            3. Example 3
+                        ### Example Sentences
+                        Provide three numbered example sentences:
+                        1. Example 1
+                        2. Example 2
+                        3. Example 3
 
-                            Keep the explanation clear and concise.
-                            """
+                        Keep the explanation clear and concise.
+                        """
 
-                # --- Streaming Call and Display Update ---
-                response = model.generate_content(prompt, stream=True)
+            # --- Streaming Call and Display Update ---
+            response = model.generate_content(prompt, stream=True)
 
-                full_response = ""
-                for chunk in response:
-                    # Check if the chunk has text content
-                    if hasattr(chunk, 'text') and chunk.text:
-                        full_response += chunk.text
-                        # Update placeholder on each chunk for visual streaming effect
-                        details_placeholder.markdown(full_response + "▌") # Add cursor
+            full_response = ""
+            for chunk in response:
+                # Check if the chunk has text content
+                if hasattr(chunk, 'text') and chunk.text:
+                    full_response += chunk.text
+                    # Update placeholder on each chunk for visual streaming effect
+                    details_placeholder.markdown(full_response + "▌") # Add cursor
 
-                # Final update to remove the cursor
-                details_placeholder.markdown(full_response)
+            # Final update to remove the cursor
+            details_placeholder.markdown(full_response)
 
-                # --- Store the successful result in the session cache ---
-                st.session_state.lingo_cache[term] = full_response
+            # --- Store the successful result in the session cache ---
+            st.session_state.lingo_cache[term] = full_response
 
-            except Exception as e:
-                details_placeholder.error(f"An error occurred while fetching details for {term}: {e}")
-                # Optionally clear the failed term from cache if needed
-                # if term in st.session_state.lingo_cache:
-                #     del st.session_state.lingo_cache[term]
+        except Exception as e:
+            details_placeholder.error(f"An error occurred while fetching details for {term}: {e}")
+            # Optionally clear the failed term from cache if needed
+            # if term in st.session_state.lingo_cache:
+            #     del st.session_state.lingo_cache[term]
 
     # 3. Handle case where the model failed to initialize
     else:
