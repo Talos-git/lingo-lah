@@ -12,8 +12,8 @@ st.set_page_config(
 )
 
 # --- Title and Description ---
-st.title("Lingo-Lah: Your Local Lingo Decoder")
-st.write("Explore and understand Malaysian slang and colloquialisms.")
+st.title("Lingo-Lah: Your Local Lingo Guide")
+st.write("Explore and understand Malaysian slang or lingo that locals use in their everyday life.")
 
 # --- State Management ---
 # Initialize selected term state

@@ -8,7 +8,7 @@ lingo_terms_by_category = {
         "Kurang Manis",
         "Belanja"
     ],
-    "Everyday Conversation & Emphasis (Particles & Fillers)": [
+    "Everyday Conversation Emphasis & Fillers": [
         "Lah",
         "Meh",
         "Lor",
