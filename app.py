@@ -53,7 +53,7 @@ def get_lingo_details(term: str, country_code: str = "MY"):
     """Fetches lingo details from the LLM with caching."""
     try:
         # Ensure API key is available
-        if "GOOGLE_API_KEY" not in st.secrets:
+        if "GEMINI_API_KEY" not in st.secrets:
             st.error("Google API key not found. Please add it to `.streamlit/secrets.toml`.")
             return {"error": "API key missing"}
 
@@ -63,12 +63,12 @@ def get_lingo_details(term: str, country_code: str = "MY"):
         model = genai.GenerativeModel('gemini-2.0-flash') # Using a suitable model
 
         prompt = f"""Explain the {country_code} slang term '{term}'.
-Include:
-1. Meaning
-2. Typical usage context
-3. Three example sentences.
+                        Include:
+                        1. Meaning
+                        2. Typical usage context
+                        3. Three example sentences.
 
-Format the response clearly with headings for each section."""
+                        Format the response clearly with headings for each section."""
 
         # Use streaming for potentially faster perceived response
         response = model.generate_content(prompt, stream=True)
