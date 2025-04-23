@@ -57,8 +57,10 @@ def get_lingo_details(term: str, country_code: str = "MY"):
             st.error("Google API key not found. Please add it to `.streamlit/secrets.toml`.")
             return {"error": "API key missing"}
 
-        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-        model = genai.GenerativeModel('gemini-1.5-flash-latest') # Using a suitable model
+        api_key = st.secrets["GOOGLE_API_KEY"]
+        
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.0-flash') # Using a suitable model
 
         prompt = f"""Explain the {country_code} slang term '{term}'.
 Include:
